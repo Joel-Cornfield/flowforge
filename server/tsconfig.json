@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "CommonJS", // CommonJS: Keeps our initial Node.js setup straightforward.
+    "moduleResolution": "Node",
+    "rootDir": "./src",
+    "outDir": "./dist", // rootDir and outDir: Keep our TypeScript source in src and compiled JavaScript in dist.
+    "strict": true, // Enables stricter type checking to catch potential errors.
+    "esModuleInterop": true, // Makes importing libraries such as Express more convenient.
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src"],
+  "exclude": ["node_modules", "dist"]
+}
