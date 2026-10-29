@@ -2,7 +2,7 @@
   "compilerOptions": {
     "target": "ES2020",
     "module": "CommonJS", // CommonJS: Keeps our initial Node.js setup straightforward.
-    "moduleResolution": "Node",
+    "moduleResolution": "bundler",
     "rootDir": "./src",
     "outDir": "./dist", // rootDir and outDir: Keep our TypeScript source in src and compiled JavaScript in dist.
     "strict": true, // Enables stricter type checking to catch potential errors.
