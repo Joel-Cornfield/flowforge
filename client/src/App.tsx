@@ -91,6 +91,7 @@ function App() {
     (
       nodeType: WorkflowNodeData["nodeType"]
     ) => {
+      // Maps every available workflow node type to its corresponding default configuration object.
       const defaults: Record<
         WorkflowNodeData["nodeType"],
         WorkflowNodeData
