@@ -229,11 +229,13 @@ button {
     border-radius: 8px;
 }
 
-/* Custom workflow nodes */
+/* Custom node styling */
 
 .workflow-node {
-    min-width: 190px;
-    padding: 16px;
+    position: relative;
+    min-width: 205px;
+    padding: 16px 16px 16px 20px;
+    overflow: visible;
     border: 1px solid #383d4d;
     border-radius: 10px;
     background: #171a23;
@@ -241,10 +243,22 @@ button {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
-.workflow-node:hover,
-.workflow-node.selected {
+.workflow-node:hover {
+    border-color: #6554a8;
+}
+
+.react-flow__node.selected .workflow-node {
     border-color: #7c5cff;
-    box-shadow: 0 0 0 1px #7c5cff33;
+    box-shadow: 0 0 0 1px #7c5cff44;
+}
+
+.node-accent {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    width: 3px;
+    border-radius: 10px 0 0 10px;
 }
 
 .node-content {
@@ -253,42 +267,225 @@ button {
     gap: 7px;
 }
 
+.node-type {
+    color: #9298a8;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
 .node-label {
     color: #f3f4f6;
     font-size: 13px;
     font-weight: 650;
+    overflow-wrap: anywhere;
 }
 
 .node-description {
+    max-width: 220px;
     color: #9298a8;
     font-size: 11px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
 }
 
-.workflow-node .react-flow__handle {
+.workflow-node .workflow-handle {
     width: 10px;
     height: 10px;
     border: 2px solid #171a23;
     background: #8b72ff;
 }
 
-@media (max-width: 650px) {
-    .topbar {
-        gap: 12px;
-        padding: 0 12px;
-    }
+/* Add-node dropdown */
 
-    .workflow-title {
+.add-node-wrapper {
+    position: relative;
+}
+
+.node-menu {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    z-index: 20;
+    width: 190px;
+    padding: 5px;
+    border: 1px solid #303441;
+    border-radius: 9px;
+    background: #171a23;
+    box-shadow: 0 12px 30px rgb(0 0 0 / 35%);
+}
+
+.node-menu button {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 11px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: #e5e7eb;
+    text-align: left;
+    font-size: 12px;
+}
+
+.node-menu button:hover {
+    background: #252936;
+}
+
+.menu-dot {
+    width: 8px;
+    height: 8px;
+    flex-shrink: 0;
+    border-radius: 50%;
+}
+
+.log-dot {
+    background: #34d399;
+}
+
+/* Configuration sidebar */
+
+.config-panel {
+    width: 290px;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 24px 18px;
+    border-left: 1px solid #252833;
+    background: #11131a;
+}
+
+.config-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 28px;
+}
+
+.config-header h2 {
+    margin: 7px 0 0;
+    color: #f3f4f6;
+    font-size: 15px;
+    overflow-wrap: anywhere;
+}
+
+.config-eyebrow {
+    color: #9298a8;
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+}
+
+.config-empty {
+    margin-top: 20px;
+    color: #9298a8;
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-bottom: 22px;
+}
+
+.config-field label {
+    color: #c5c9d4;
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.config-field input,
+.config-field select {
+    width: 100%;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid #303441;
+    border-radius: 6px;
+    outline: none;
+    background: #171a23;
+    color: #e5e7eb;
+    font: inherit;
+    font-size: 12px;
+}
+
+.config-field input:focus,
+.config-field select:focus {
+    border-color: #7c5cff;
+    box-shadow: 0 0 0 2px #7c5cff22;
+}
+
+.config-field input::placeholder {
+    color: #686e7e;
+}
+
+.field-hint {
+    color: #858b9b;
+    font-size: 10px;
+    line-height: 1.6;
+}
+
+.config-help {
+    color: #9298a8;
+    font-size: 12px;
+    line-height: 1.8;
+}
+
+.config-metadata {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-top: 28px;
+    padding-top: 18px;
+    border-top: 1px solid #252833;
+}
+
+.config-metadata > span {
+    color: #9298a8;
+    font-size: 10px;
+}
+
+.config-metadata code {
+    color: #b6a7ff;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+}
+
+.delete-button {
+    padding: 7px 9px;
+    border: 1px solid #60353b;
+    border-radius: 6px;
+    background: #28191e;
+    color: #fda4af;
+    font-size: 10px;
+    font-weight: 600;
+}
+
+.delete-button:hover {
+    background: #402127;
+}
+
+@media (max-width: 1050px) {
+    .config-panel {
+        width: 240px;
+    }
+}
+
+@media (max-width: 750px) {
+    .config-panel {
+        width: 210px;
+        padding: 18px 12px;
+    }
+}
+
+@media (max-width: 550px) {
+    .sidebar {
         display: none;
     }
 
-    .sidebar {
-        width: 175px;
-        padding: 20px 12px;
-    }
-
-    .primary-button,
-    .secondary-button {
-        padding: 8px;
-        font-size: 11px;
+    .config-panel {
+        width: 180px;
     }
 }
