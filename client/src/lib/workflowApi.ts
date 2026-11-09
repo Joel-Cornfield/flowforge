@@ -58,7 +58,7 @@ export async function getWorkflows(): Promise<WorkflowSummary[]> {
 
 // GET /workflows/:id
 export async function getWorkflow(id: string): Promise<Workflow> {
-    return request<Workflow>(`/workflows/:${id}`)
+    return request<Workflow>(`/workflows/${id}`)
 }
 
 // POST /workflows
@@ -71,7 +71,7 @@ export async function createWorkflow<TNode, TEdge>(data: WorkflowInput<TNode, TE
 
 // PUT /workflows/:id
 export async function updateWorkflow<TNode, TEdge>(id: string, data: WorkflowInput<TNode, TEdge>): Promise<Workflow<TNode, TEdge>> {
-    return request<Workflow<TNode, TEdge>>(`/workflows/:${id}`, {
+    return request<Workflow<TNode, TEdge>>(`/workflows/${id}`, {
         method: "PUT",
         body: JSON.stringify(data),
     });
@@ -79,7 +79,7 @@ export async function updateWorkflow<TNode, TEdge>(id: string, data: WorkflowInp
 
 // DELETE /workflows/:id
 export async function deleteWorkflow(id: string): Promise<void> {
-    return request<void>(`/workflows/:${id}`, {
+    return request<void>(`/workflows/${id}`, {
         method: "DELETE",
     });
 }
