@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Background,
   Controls,
@@ -15,8 +15,15 @@ import {
 
 import "@xyflow/react/dist/style.css";
 import "./App.css";
-import { ManualTriggerNode, HttpRequestNode, LogOutputNode, type WorkflowNodeData } from "./components/nodes/WorkflowNodes";
+import { 
+  ManualTriggerNode, 
+  HttpRequestNode, 
+  LogOutputNode, 
+  type WorkflowNodeData 
+} from "./components/nodes/WorkflowNodes";
+
 import NodeConfigPanel from "./components/panels/NodeConfigPanel";
+import { createWorkflow, getWorkflow, getWorkflows, updateWorkflow, type WorkflowSummary } from "./lib/workflowApi";
 
 // Initial workflow
 const initialNodes: Node<WorkflowNodeData>[] = [
@@ -59,6 +66,16 @@ function App() {
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showNodeMenu, setShowNodeMenu] = useState(false);
 
+  // Workflow persistence state 
+  const [workflowId, setWorkflowId] = useState<string | null>(null);
+  const [workflowName, setWorkflowName] = useState("My First Workflow");
+  const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [statusMessage, setStatusMessage] = useState("");
+
+
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
       manualTrigger: ManualTriggerNode,
@@ -69,6 +86,128 @@ function App() {
   );
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
+
+  // Load workflow from API
+  const loadWorkflow = useCallback(
+    async (id: string) => {
+      setIsLoading(true);
+      setError(null);
+      setStatusMessage("");
+
+      try {
+        const workflow = await getWorkflow(id);
+
+        setWorkflowId(workflow.id);
+        setWorkflowName(workflow.name);
+        setNodes(workflow.nodes as Node<WorkflowNodeData>[]); // API returns unknown[], so have to cast to Node<WorkflowNodeData>[]
+        setEdges(workflow.edges as Edge[]);
+        setSelectedNodeId(null);
+        setStatusMessage("Workflow loaded successfully");
+      } catch (error) {
+        setError(
+          error instanceof Error 
+          ? error.message 
+          : "Failed to load workflow."
+        );
+      } finally {
+        setIsLoading(false);
+      }
+    },
+    [setNodes, setEdges]
+  );
+
+  // Fetch saved workflows when application starts 
+  useEffect(() => {
+    let cancelled = false;
+    
+    const initialiseWorkflows = async () => {
+      setIsLoading(true);
+      
+      try {
+        const workflows = await getWorkflows();
+
+        if (cancelled) return;
+
+        setWorkflows(workflows);
+
+        // Auto load most recently updated workflow
+        if (workflows.length > 0) {
+          const workflow = await getWorkflow(workflows[0].id);
+
+          if (cancelled) return;
+
+          setWorkflowId(workflow.id);
+          setWorkflowName(workflow.name);
+          setNodes(workflow.nodes as Node<WorkflowNodeData>[]);
+          setEdges(workflow.edges as Edge[]);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setError (
+            error instanceof Error
+              ? error.message
+              : "Failed to retrieve workflows."
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    void initialiseWorkflows(); // void as we are not awaiting it in the effect
+
+    return () => {
+      cancelled = true
+    };
+  }, [setNodes, setEdges]);
+
+  const saveCurrentWorkflow = useCallback(async () => {
+    setIsSaving(true);
+    setError(null);
+    setStatusMessage("");
+
+    try {
+      const workflowData = {
+        name: workflowName,
+        nodes,
+        edges,
+      };
+
+      const savedWorkflow = workflowId 
+        ? await updateWorkflow(workflowId, workflowData)
+        : await createWorkflow(workflowData);
+      
+      setWorkflowId(savedWorkflow.id);
+      setWorkflowName(savedWorkflow.name);
+
+      // Refresh saved workflow list 
+      const workflows = await getWorkflows();
+      setWorkflows(workflows);
+
+      setStatusMessage("Workflows saved successfully");
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Failed to save workflow."
+      )
+    } finally {
+      setIsSaving(false);
+    }
+  }, [workflowId, workflowName, nodes, edges]);
+
+  // Create a new workflow
+  const createNewWorkflow = useCallback(() => {
+    setWorkflowId(null);
+    setWorkflowName("Untitled Workflow");
+    setNodes(initialNodes);
+    setEdges(initialEdges);
+    setSelectedNodeId(null);
+    setError(null);
+    setStatusMessage("New workflow created successfully.");
+  }, [setNodes, setEdges]);
 
   // Add a connection between two nodes
   const onConnect = useCallback(
@@ -184,10 +323,49 @@ const deleteNode = useCallback(
         </div>
 
         <div className="workflow-title">
-          My First Workflow
+          <input 
+            type="text"
+            value={workflowName}
+            onChange={(event) => setWorkflowName(event.target.value)}
+            maxLength={100}
+            aria-label="Workflow name"
+          />
         </div>
 
         <div className="topbar-actions">
+          <button 
+            className="secondary-button"
+            onClick={createNewWorkflow}
+            disabled={isLoading || isSaving}
+          >
+            + New
+          </button>
+
+          <select 
+            className="workflow-select"
+            value={workflowId ?? ""}
+            onChange={(event) => {
+              if (event.target.value) {
+                void loadWorkflow(event.target.value);
+              }
+            }}
+            disabled={isLoading || workflows.length === 0}
+            aria-label="Load saved workflow"
+          >
+            <option value="">
+              {workflows.length === 0
+                ? "No saved workflows"
+                : "Load workflows..."
+              }
+            </option>
+
+            {workflows.map((workflow) => (
+              <option key={workflow.id} value={workflow.id}>
+                {workflow.name}
+              </option>
+            ))}
+          </select>
+
           <div className="add-node-wrapper">
             <button 
               className="secondary-button"
@@ -213,7 +391,7 @@ const deleteNode = useCallback(
                     addWorkFlowNode("httpRequest")
                   }
                 >
-                  <span className="menu-dot trigger-dot" />
+                  <span className="menu-dot http-dot" />
                   HTTP Request
                 </button>
                 <button
@@ -221,12 +399,20 @@ const deleteNode = useCallback(
                     addWorkFlowNode("logOutput")
                   }
                 >
-                  <span className="menu-dot trigger-dot" />
+                  <span className="menu-dot log-dot" />
                   Log Output
                 </button>
               </div>
             )}
           </div>
+
+          <button 
+            className="primary-button"
+            onClick={() => void saveCurrentWorkflow()}
+            disabled={isSaving || isLoading || !workflowName.trim()}
+          >
+            {isSaving ? "Saving..." : "Save Workflow"}
+          </button>
 
           <button 
             className="primary-button"
@@ -240,6 +426,16 @@ const deleteNode = useCallback(
           </button>
         </div>
       </header>
+
+      {(error || statusMessage || isLoading) && (
+        <div className="workflow-notification">
+          {isLoading && <span>Loading workflow...</span>}
+
+          {error && <span className="error-message">{error}</span>}
+
+          {!error && statusMessage && <span>{statusMessage}</span>}
+        </div>
+      )}
 
       <main className="editor">
         <aside className="sidebar">
