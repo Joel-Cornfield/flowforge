@@ -75,6 +75,20 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
 
+  useEffect(() => {
+    if (!error && !statusMessage) return;
+
+    // Timer to clear error/statusMessage after 5 sec
+    const timer = setTimeout(() => {
+      setError(null);
+      setStatusMessage("");
+    }, 5000);
+
+    // Cleanup function to clear the timeout if the component unmounts
+    // or if `error` or 'statusMessage' changes before the timer finishes
+    return () => clearTimeout(timer);
+  }, [error, statusMessage]);
+
 
   const nodeTypes = useMemo<NodeTypes>(
     () => ({
@@ -352,13 +366,6 @@ const deleteNode = useCallback(
             disabled={isLoading || workflows.length === 0}
             aria-label="Load saved workflow"
           >
-            <option value="">
-              {workflows.length === 0
-                ? "No saved workflows"
-                : "Load workflows..."
-              }
-            </option>
-
             {workflows.map((workflow) => (
               <option key={workflow.id} value={workflow.id}>
                 {workflow.name}
