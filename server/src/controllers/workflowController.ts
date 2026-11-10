@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../lib/prisma"; 
 import { z } from "zod";
+import { executeWorkflow as execute } from "../services/workflowExecutor";
 
 // Define schema (runtime validator)
 const workFlowSchema = z.object({
@@ -170,6 +171,32 @@ export const deleteWorkflow = async (
         });
 
         return res.status(204).send();
+    } catch (error) {
+        next(error);
+    }
+}
+
+// POST /api/workflows/:id/execute
+// Execute a workflow
+export const executeWorkflow = async (
+    req: Request<{id: string}>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        const workflow = await prisma.workflow.findUnique({
+            where: {
+                id: req.params.id
+            },
+        });
+
+        if (!workflow) {
+            return res.status(404).json({ error: "Workflow not found." });
+        }
+
+        const result = await execute(workflow.nodes as any[], workflow.edges as any[]); // any() to temporarily bridge type difference  
+
+        return res.status(200).json(result);
     } catch (error) {
         next(error);
     }

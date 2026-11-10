@@ -210,6 +210,63 @@ async function executeNode(node: WorkflowNode, previousOutput: unknown): Promise
         case "logOutput": 
             return previousOutput;
     }
+}
 
-    // TODO: export async function executeWorkflow(nodes, edges): Promise<ExecutionResult>
+export async function executeWorkflow(
+    nodes: WorkflowNode[], 
+    edges: WorkflowEdge[]
+): Promise<ExecutionResult> {
+    const startedAt = new Date();
+    const nodeResults: NodeResult[] = [];
+
+    try {
+        const orderedNodes = getExecutionOrder(nodes, edges);
+        let previousOutput: unknown = null;
+        
+        for (const node of orderedNodes) {
+            const nodeType = getNodeType(node);
+            const nodeStartedAt = Date.now();
+
+            try {
+                const output = await executeNode(node, previousOutput);
+                nodeResults.push({
+                    nodeId: node.id,
+                    nodeType,
+                    status: "success",
+                    output,
+                    durationMs: Date.now() - nodeStartedAt
+                });
+
+                previousOutput = output;
+            } catch (error) {
+                nodeResults.push({
+                    nodeId: node.id,
+                    nodeType,
+                    status: "failed",
+                    error: error instanceof Error 
+                        ? error.message
+                        : "An unexpected error occurred.",
+                    durationMs: Date.now() - nodeStartedAt
+                });
+
+                throw error; // so outer catch stops run
+            }
+        }
+        return {
+            status: "success",
+            startedAt: startedAt.toISOString(),
+            finishedAt: new Date().toISOString(),
+            nodeResults,
+        }
+    } catch (error) {
+        return {
+            status: "failed",
+            startedAt: startedAt.toISOString(),
+            finishedAt: new Date().toISOString(),
+            nodeResults,
+            error: error instanceof Error
+                ? error.message
+                : "Workflow execution failed.",
+        };
+    }
 }
