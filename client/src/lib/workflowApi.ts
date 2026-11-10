@@ -23,6 +23,23 @@ interface WorkflowInput<TNode = unknown, TEdge = unknown> {
     edges: TEdge[],
 }
 
+interface NodeResult { // one per node run
+    nodeId: string;
+    nodeType: "manualTrigger" | "httpRequest" | "logOutput";
+    status: "success" | "failed";
+    output?: unknown;
+    error?: string;
+    durationMs: number;
+}
+
+export interface ExecutionResult { // whole run
+    status: "success" | "failed";
+    startedAt: string;
+    finishedAt: string;
+    nodeResults: NodeResult[];
+    error?: string;
+}
+
 async function request<T>( // Caller specifies what type of data expected back
     endpoint: string,
     options?: RequestInit
@@ -81,5 +98,12 @@ export async function updateWorkflow<TNode, TEdge>(id: string, data: WorkflowInp
 export async function deleteWorkflow(id: string): Promise<void> {
     return request<void>(`/workflows/${id}`, {
         method: "DELETE",
+    });
+}
+
+// POAT /workflows/:id/execute
+export async function executeWorkflowById(id: string): Promise<ExecutionResult> {
+    return request<ExecutionResult>(`/workflows/${id}/execute`, {
+        method: "POST",
     });
 }
