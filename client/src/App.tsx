@@ -23,7 +23,7 @@ import {
 } from "./components/nodes/WorkflowNodes";
 
 import NodeConfigPanel from "./components/panels/NodeConfigPanel";
-import { createWorkflow, getWorkflow, getWorkflows, updateWorkflow, type WorkflowSummary } from "./lib/workflowApi";
+import { createWorkflow, getWorkflow, getWorkflows, updateWorkflow, executeWorkflowById, type WorkflowSummary, type ExecutionResult } from "./lib/workflowApi";
 
 // Initial workflow
 const initialNodes: Node<WorkflowNodeData>[] = [
@@ -74,6 +74,10 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState("");
+
+  // Execution state
+  const [isExecuting, setIsExecuting] = useState(false);
+  const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
 
   useEffect(() => {
     if (!error && !statusMessage) return;
@@ -209,6 +213,48 @@ function App() {
       )
     } finally {
       setIsSaving(false);
+    }
+  }, [workflowId, workflowName, nodes, edges]);
+
+  const runWorkflow = useCallback(async () => {
+    setIsExecuting(true);
+    setError(null);
+    setStatusMessage("");
+    setExecutionResult(null);
+
+    try {
+      // Save latest editor state before executing 
+      const workflowData = {
+        name: workflowName,
+        nodes, 
+        edges,
+      };
+
+      const savedWorkflow = workflowId 
+        ? await updateWorkflow(workflowId, workflowData)
+        : await createWorkflow(workflowData);
+
+      const updatedWorkflows = await getWorkflows();
+      setWorkflows(updatedWorkflows);
+
+      // Execute saved version of workflow
+      const result = await executeWorkflowById(savedWorkflow.id);
+
+      setExecutionResult(result);
+
+      if (result.status === "success") {
+        setStatusMessage("Workflow executed successfully.");
+      } else {
+        setStatusMessage(result.error ?? "Workflow execution failed.");
+      }
+    } catch (error) {
+      setError(
+        error instanceof Error 
+          ? error.message
+          : "Failed to execute workflow."
+      );
+    } finally {
+      setIsExecuting(false);
     }
   }, [workflowId, workflowName, nodes, edges]);
 
@@ -423,13 +469,10 @@ const deleteNode = useCallback(
 
           <button 
             className="primary-button"
-            onClick={() =>
-              alert(
-                "Workflow execution not implemented yet..."
-              )
-            }
+            onClick={() => void runWorkflow()}
+            disabled={isExecuting || isSaving || isLoading || !workflowName.trim()}
           >
-            Run Workflow
+            {isExecuting ? "Running..." : "Run Workflow"}
           </button>
         </div>
       </header>
@@ -442,6 +485,64 @@ const deleteNode = useCallback(
 
           {!error && statusMessage && <span>{statusMessage}</span>}
         </div>
+      )}
+
+      {executionResult && (
+        <section className="execution-panel">
+          <div className="execution-header">
+            <h3>Execution Results</h3>
+
+            <span
+              className={
+                executionResult.status === "success"
+                  ? "execution-success"
+                  : "execution-failed"
+              }
+            >
+              {executionResult.status === "success"
+                ? "Successful"
+                : "Failed"
+              }
+            </span>
+          </div>
+
+          {executionResult.error && (
+            <p className="error-message">{executionResult.error}</p>
+          )}
+
+          <div className="execution-node-list">
+            {executionResult.nodeResults.map((result, index) => (
+              <div className="execution-node" key={`${result.nodeId}-${index}`}>
+                <div className="execution-node-header">
+                  <strong>{result.nodeType}</strong>
+
+                  <span
+                    className={
+                      result.status === "success"
+                        ? "execution-success"
+                        : "execution-failed"
+                    }
+                  >
+                    {result.status}
+                  </span>
+                </div>
+
+                <p>Node ID: {result.nodeId || "Workflow"}</p>
+                <p>Duration: {result.durationMs} ms</p>
+
+                {result.error && (
+                  <p className="error-message">{result.error}</p>
+                )}
+
+                {result.output !== undefined && (
+                  <pre className="execution-output">
+                    {JSON.stringify(result.output, null, 2)}
+                  </pre>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       <main className="editor">

@@ -548,3 +548,74 @@ button {
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* Execution panel */
+.execution-panel {
+  padding: 16px 24px;
+  background: #171923;
+  border-bottom: 1px solid #303442;
+  max-height: 350px;
+  overflow-y: auto;
+}
+
+.execution-header,
+.execution-node-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.execution-header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.execution-success {
+  color: #4ade80;
+  font-size: 13px;
+}
+
+.execution-failed,
+.error-message {
+  color: #f87171;
+  font-size: 13px;
+}
+
+.execution-node-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.execution-node {
+  padding: 12px;
+  background: #202431;
+  border: 1px solid #353b4b;
+  border-radius: 8px;
+}
+
+.execution-node-header strong {
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.execution-node p {
+  margin: 8px 0;
+  font-size: 12px;
+  color: #a1a8b8;
+}
+
+.execution-output {
+  padding: 12px;
+  margin-top: 10px;
+  background: #11141d;
+  border-radius: 6px;
+  color: #cbd5e1;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-x: auto;
+  max-height: 180px;
+  overflow-y: auto;
+}
