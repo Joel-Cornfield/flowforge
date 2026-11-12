@@ -243,6 +243,28 @@ button {
     transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+.workflow-node.idle {
+    border-color: #334155;
+    opacity: 0.9;
+}
+
+.workflow-node.running {
+    border-color: #3b82f6;
+    background-color: #1e293b;
+    animation: node-pulse 1.6s infinite ease-in-out;
+}
+
+.workflow-node.success {
+    border-color: #10b981;
+    box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.25);
+}
+
+.workflow-node.failed {
+    border-color: #ef4444;
+    background-color: #2a181d; 
+    box-shadow: 0 0 12px rgba(239, 68, 68, 0.3);
+}
+
 .workflow-node:hover {
     border-color: #6554a8;
 }
@@ -254,14 +276,16 @@ button {
 
 .node-accent {
     position: absolute;
-    top: 0;
-    bottom: 0;
-    left: 0;
-    width: 3px;
-    border-radius: 10px 0 0 10px;
+    top: 8px;
+    bottom: 8px;
+    left: 8px;
+    width: 4px;
+    border-radius: 999px;
+    box-shadow: 0 0 12px rgba(255, 255, 255, 0.08);
 }
 
 .node-content {
+    margin-left: 12px;
     display: flex;
     flex-direction: column;
     gap: 7px;
@@ -620,6 +644,7 @@ button {
   overflow-y: auto;
 }
 
+/* Close button */
 .close-btn {
   position: relative;
   width: 36px;

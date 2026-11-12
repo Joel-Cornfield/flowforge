@@ -6,17 +6,20 @@ export type WorkflowNodeData = {
     nodeType: "manualTrigger" | "httpRequest" | "logOutput";
     url?: string;
     method?: "GET" | "POST" | "PUT" | "DELETE";
+    executionStatus?: "idle" | "running" | "success" | "failed";
 }
 
 function NodeShell({
     children,
     color,
+    status= "idle",
 }: {
     children: React.ReactNode;
     color: string;
+    status?: WorkflowNodeData["executionStatus"];
 }) {
     return (
-        <div className="workflow-node">
+        <div className={`workflow-node ${status}`}>
             <Handle
                 type="target"
                 position={Position.Left}
@@ -43,7 +46,7 @@ export function ManualTriggerNode({
     data,
 }: NodeProps<Node<WorkflowNodeData>>) {
     return (
-        <NodeShell color="#a78bfa">
+        <NodeShell color="#a78bfa" status={data.executionStatus}>
             <div className="node-content">
                 <span className="node-type">TRIGGER</span>
                 <span className="node-label">{data.label}</span>
@@ -57,7 +60,7 @@ export function HttpRequestNode({
     data,
 }: NodeProps<Node<WorkflowNodeData>>) {
     return (
-        <NodeShell color="#38bdf8">
+        <NodeShell color="#38bdf8" status={data.executionStatus}>
             <div className="node-content">
                 <span className="node-type">INTEGRATION</span>
                 <span className="node-label">{data.label}</span>
@@ -74,7 +77,7 @@ export function LogOutputNode({
     data,
 }: NodeProps<Node<WorkflowNodeData>>) {
     return (
-        <NodeShell color="#34d399">
+        <NodeShell color="#34d399" status={data.executionStatus}>
             <div className="node-content">
                 <span className="node-type">OUTPUT</span>
                 <span className="node-label">{data.label}</span>

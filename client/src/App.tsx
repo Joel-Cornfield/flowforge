@@ -106,6 +106,37 @@ function App() {
 
   const selectedNode = nodes.find((node) => node.id === selectedNodeId) ?? null;
 
+  const resetExecutionStatuses = useCallback(() => {
+    setNodes((currentNodes) => 
+      currentNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          executionStatus: "idle",
+        },
+      }))
+    );
+  },[setNodes]);
+
+  const setNodeExecutionStatus = useCallback(
+    (nodeId: string, executionStatus: WorkflowNodeData["executionStatus"]) => {
+      setNodes((currentNodes) => 
+        currentNodes.map((node) => 
+          node.id === nodeId 
+            ? {
+              ...node, 
+              data: {
+                ...node.data,
+                executionStatus,
+              }
+            }
+            : node
+        )
+      )
+  },
+  [setNodes]
+);
+
   // Load workflow from API
   const loadWorkflow = useCallback(
     async (id: string) => {
@@ -122,6 +153,8 @@ function App() {
         setEdges(workflow.edges as Edge[]);
         setSelectedNodeId(null);
         setStatusMessage("Workflow loaded successfully");
+        resetExecutionStatuses();
+        setIsVisible(false);
       } catch (error) {
         setError(
           error instanceof Error 
@@ -222,6 +255,16 @@ function App() {
     setError(null);
     setStatusMessage("");
     setExecutionResult(null);
+    resetExecutionStatuses();
+    setNodes((currentNodes) => 
+      currentNodes.map((node) => ({
+        ...node,
+        data: {
+          ...node.data,
+          executionStatus: "running",
+        },
+      }))
+    );
 
     try {
       // Save latest editor state before executing 
@@ -241,6 +284,10 @@ function App() {
       // Execute saved version of workflow
       const result = await executeWorkflowById(savedWorkflow.id);
 
+      for (const nodeResult of result.nodeResults) {
+        setNodeExecutionStatus(nodeResult.nodeId, nodeResult.status);
+      }
+
       setExecutionResult(result);
       setIsVisible(true);
 
@@ -258,7 +305,7 @@ function App() {
     } finally {
       setIsExecuting(false);
     }
-  }, [workflowId, workflowName, nodes, edges]);
+  }, [workflowId, workflowName, nodes, edges, resetExecutionStatuses, setNodeExecutionStatus]);
 
   // Create a new workflow
   const createNewWorkflow = useCallback(() => {
