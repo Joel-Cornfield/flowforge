@@ -126,7 +126,7 @@ async function executeNode(node: WorkflowNode, previousOutput: unknown): Promise
             const method = (node.data.method ?? "GET").toUpperCase();
             
             if (!url) {
-                throw new Error("HTTP Requesy node is missing a URL.");
+                throw new Error("HTTP Request node is missing a URL.");
             }
 
             if (!["GET", "POST", "PUT", "DELETE"].includes(method)) {
