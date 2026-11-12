@@ -539,7 +539,7 @@ const deleteNode = useCallback(
       {executionResult && isVisible && (
         <section className="execution-panel">
           <div className="execution-header">
-            <button type="button" className="close-btn" aria-label="Close" onClick={() => setIsVisible(false)}></button>
+            <button type="button" className="close-btn" aria-label="Close" onClick={() => {setIsVisible(false); resetExecutionStatuses(); }}></button>
 
             <h3>Execution Results</h3>
 
