@@ -619,3 +619,52 @@ button {
   max-height: 180px;
   overflow-y: auto;
 }
+
+.close-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  background: transparent;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+
+/* Create the two lines of the X */
+.close-btn::before,
+.close-btn::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 18px;
+  height: 2px;
+  background-color: #333;
+  border-radius: 2px;
+  transition: background-color 0.2s ease;
+}
+
+.close-btn::before {
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.close-btn::after {
+  transform: translate(-50%, -50%) rotate(-45deg);
+}
+
+/* Hover and Focus states */
+.close-btn:hover {
+  background-color: lightgrey;
+  transform: rotate(90deg);
+}
+
+.close-btn:hover::before,
+.close-btn:hover::after {
+  background-color: #000;
+}
+
+.close-btn:focus-visible {
+  outline: 2px solid #005fcc;
+  outline-offset: 2px;
+}

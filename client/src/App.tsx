@@ -78,6 +78,7 @@ function App() {
   // Execution state
   const [isExecuting, setIsExecuting] = useState(false);
   const [executionResult, setExecutionResult] = useState<ExecutionResult | null>(null);
+  const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
     if (!error && !statusMessage) return;
@@ -241,6 +242,7 @@ function App() {
       const result = await executeWorkflowById(savedWorkflow.id);
 
       setExecutionResult(result);
+      setIsVisible(true);
 
       if (result.status === "success") {
         setStatusMessage("Workflow executed successfully.");
@@ -487,9 +489,11 @@ const deleteNode = useCallback(
         </div>
       )}
 
-      {executionResult && (
+      {executionResult && isVisible && (
         <section className="execution-panel">
           <div className="execution-header">
+            <button type="button" className="close-btn" aria-label="Close" onClick={() => setIsVisible(false)}></button>
+
             <h3>Execution Results</h3>
 
             <span
