@@ -165,7 +165,7 @@ function App() {
         setIsLoading(false);
       }
     },
-    [setNodes, setEdges]
+    [setNodes, setEdges, resetExecutionStatuses]
   );
 
   // Fetch saved workflows when application starts 
@@ -278,6 +278,9 @@ function App() {
         ? await updateWorkflow(workflowId, workflowData)
         : await createWorkflow(workflowData);
 
+      setWorkflowId(savedWorkflow.id);
+      setWorkflowName(savedWorkflow.name);
+
       const updatedWorkflows = await getWorkflows();
       setWorkflows(updatedWorkflows);
 
@@ -316,6 +319,8 @@ function App() {
     setSelectedNodeId(null);
     setError(null);
     setStatusMessage("New workflow created successfully.");
+    setExecutionResult(null);
+    setIsVisible(false);
   }, [setNodes, setEdges]);
 
   // Add a connection between two nodes
