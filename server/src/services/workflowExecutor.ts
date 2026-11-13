@@ -35,6 +35,15 @@ interface ExecutionResult { // whole run
     error?: string;
 }
 
+export interface ExecutionEvent {
+    nodeId: string;
+    nodeType: NodeType;
+    status: "running" | "success" | "failed";
+    output?: unknown;
+    error?: string;
+    durationMs?: number;
+}
+
 function getNodeType(node: WorkflowNode): NodeType {
     const nodeType = node.data.nodeType ?? node.type;
 
@@ -214,7 +223,8 @@ async function executeNode(node: WorkflowNode, previousOutput: unknown): Promise
 
 export async function executeWorkflow(
     nodes: WorkflowNode[], 
-    edges: WorkflowEdge[]
+    edges: WorkflowEdge[],
+    onProgress?: (event: ExecutionEvent) => void
 ): Promise<ExecutionResult> {
     const startedAt = new Date();
     const nodeResults: NodeResult[] = [];
@@ -228,6 +238,12 @@ export async function executeWorkflow(
             const nodeStartedAt = Date.now();
 
             try {
+                onProgress?.({ // Emit running status before executing node
+                    nodeId: node.id,
+                    nodeType,
+                    status: "running",
+                });
+                
                 const output = await executeNode(node, previousOutput);
                 nodeResults.push({
                     nodeId: node.id,
@@ -238,12 +254,30 @@ export async function executeWorkflow(
                 });
 
                 previousOutput = output;
+
+                onProgress?.({ // Emit success status after executing node
+                    nodeId: node.id,
+                    nodeType,
+                    status: "success",
+                    output,
+                    durationMs: Date.now() - nodeStartedAt
+                });
             } catch (error) {
                 nodeResults.push({
                     nodeId: node.id,
                     nodeType,
                     status: "failed",
                     error: error instanceof Error 
+                        ? error.message
+                        : "An unexpected error occurred.",
+                    durationMs: Date.now() - nodeStartedAt
+                });
+
+                onProgress?.({ // Emit failed status in case of node failure
+                    nodeId: node.id,
+                    nodeType,
+                    status: "failed",
+                    error: error instanceof Error
                         ? error.message
                         : "An unexpected error occurred.",
                     durationMs: Date.now() - nodeStartedAt

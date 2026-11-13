@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import { Prisma } from "../generated/prisma/client";
 import { prisma } from "../lib/prisma"; 
 import { z } from "zod";
-import { executeWorkflow as execute } from "../services/workflowExecutor";
+import { executeWorkflow as execute, ExecutionEvent } from "../services/workflowExecutor";
 
 // Define schema (runtime validator)
 const workFlowSchema = z.object({
@@ -201,3 +201,94 @@ export const executeWorkflow = async (
         next(error);
     }
 }
+
+// POST /api/workflows/:id/execute/stream
+// Streams workflow execution events to the client
+export const streamEvents = async (
+    req: Request<{ id: string }>,
+    res: Response,
+    next: NextFunction,
+) => {
+    try {
+        // Find workflow before opening SSE connection
+        const workflow = await prisma.workflow.findUnique({
+            where: {
+                id: req.params.id,
+            },
+        });
+
+        if (!workflow) {
+            return res.status(404).json({
+                error: "Workflow not found.",
+            });
+        }
+
+        // Set required SSE headers
+        res.setHeader("Content-Type", "text/event-stream");
+        res.setHeader("Cache-Control", "no-cache, no-transform");
+        res.setHeader("Connection", "keep-alive");
+        res.flushHeaders();
+
+        let clientDisconnected = false;
+
+        // Track client disconnection
+        req.on("close", () => {
+            clientDisconnected = true;
+            console.log("SSE client disconnected.");
+        });
+
+        // Send an SSE message
+        const sendEvent = (event: string, data: unknown) => {
+            if (clientDisconnected || res.writableEnded) {
+                return;
+            }
+
+            res.write(`event: ${event}\n`);
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
+
+        // Send initial connection event
+        sendEvent("connected", {
+            message: "Connected to SSE stream",
+        });
+
+        // Callback passed into workflow executor
+        const constructServerSentEvent = (event: ExecutionEvent) => {
+            sendEvent("node", event);
+        };
+
+        // Execute workflow and stream node events
+        const result = await execute(
+            workflow.nodes as any[],
+            workflow.edges as any[],
+            constructServerSentEvent,
+        );
+
+        // Send final execution result
+        sendEvent("complete", result);
+
+        // Close connection after execution finishes
+        if (!clientDisconnected && !res.writableEnded) {
+            res.end();
+        }
+    } catch (error) {
+        // Before SSE headers are sent, use normal Express error handling
+        if (!res.headersSent) {
+            return next(error);
+        }
+
+        // After SSE headers are sent, send an SSE error event
+        if (!res.writableEnded) {
+            res.write(
+                `event: error\n` +
+                `data: ${JSON.stringify({
+                    message: error instanceof Error
+                        ? error.message
+                        : "Workflow execution failed.",
+                })}\n\n`,
+            );
+
+            res.end();
+        }
+    }
+};
