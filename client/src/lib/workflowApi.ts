@@ -114,7 +114,7 @@ export async function deleteWorkflow(id: string): Promise<void> {
 
 // POST /workflows/:id/execute/stream
 export async function executeWorkflowStream(id: string, onEvent: (event: ExecutionEvent) => void, onComplete: (event: ExecutionResult) => void) {
-    const response = await fetch(`${API_URL}/${id}/execute/stream`, {
+    const response = await fetch(`${API_URL}/workflows/${id}/execute/stream`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
