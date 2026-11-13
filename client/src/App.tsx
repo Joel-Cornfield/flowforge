@@ -23,7 +23,7 @@ import {
 } from "./components/nodes/WorkflowNodes";
 
 import NodeConfigPanel from "./components/panels/NodeConfigPanel";
-import { createWorkflow, getWorkflow, getWorkflows, updateWorkflow, executeWorkflowById, type WorkflowSummary, type ExecutionResult } from "./lib/workflowApi";
+import { createWorkflow, getWorkflow, getWorkflows, updateWorkflow, type WorkflowSummary, type ExecutionResult, type ExecutionEvent, executeWorkflowStream } from "./lib/workflowApi";
 
 // Initial workflow
 const initialNodes: Node<WorkflowNodeData>[] = [
@@ -131,11 +131,33 @@ function App() {
               }
             }
             : node
+          )
         )
-      )
-  },
-  [setNodes]
-);
+    },
+    [setNodes]
+  );
+
+  const receiveEvent = useCallback(
+    (result: ExecutionEvent) => {
+      setNodeExecutionStatus(result.nodeId, result.status);
+    },
+    [setNodeExecutionStatus]
+  );
+
+  const completeExecution = useCallback(
+    (result: ExecutionResult) => {
+      setExecutionResult(result);
+      setIsVisible(true);
+
+      if (result.status === "success") {
+        setStatusMessage("Workflow executed successfully.");
+      } else {
+        setStatusMessage(result.error ?? "Workflow execution failed.");
+      }
+    },
+    [setExecutionResult, setIsVisible, setStatusMessage]
+  );
+
 
   // Load workflow from API
   const loadWorkflow = useCallback(
@@ -256,15 +278,6 @@ function App() {
     setStatusMessage("");
     setExecutionResult(null);
     resetExecutionStatuses();
-    setNodes((currentNodes) => 
-      currentNodes.map((node) => ({
-        ...node,
-        data: {
-          ...node.data,
-          executionStatus: "running",
-        },
-      }))
-    );
 
     try {
       // Save latest editor state before executing 
@@ -285,20 +298,8 @@ function App() {
       setWorkflows(updatedWorkflows);
 
       // Execute saved version of workflow
-      const result = await executeWorkflowById(savedWorkflow.id);
+      await executeWorkflowStream(savedWorkflow.id, receiveEvent, completeExecution);
 
-      for (const nodeResult of result.nodeResults) {
-        setNodeExecutionStatus(nodeResult.nodeId, nodeResult.status);
-      }
-
-      setExecutionResult(result);
-      setIsVisible(true);
-
-      if (result.status === "success") {
-        setStatusMessage("Workflow executed successfully.");
-      } else {
-        setStatusMessage(result.error ?? "Workflow execution failed.");
-      }
     } catch (error) {
       setError(
         error instanceof Error 
@@ -308,7 +309,7 @@ function App() {
     } finally {
       setIsExecuting(false);
     }
-  }, [workflowId, workflowName, nodes, edges, resetExecutionStatuses, setNodeExecutionStatus]);
+  }, [workflowId, workflowName, nodes, edges, resetExecutionStatuses, receiveEvent, completeExecution]);
 
   // Create a new workflow
   const createNewWorkflow = useCallback(() => {

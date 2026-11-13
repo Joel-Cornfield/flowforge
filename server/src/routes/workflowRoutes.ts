@@ -8,7 +8,6 @@ router.get("/:id", getWorkFlowById);
 router.post("/", createWorkflow);
 router.put("/:id", updateWorkFlow);
 router.delete("/:id", deleteWorkflow);
-router.post("/:id/execute", executeWorkflow);
 router.post("/:id/execute/stream", streamEvents);
 
 export default router; 
