@@ -5,6 +5,11 @@ interface IntegrationCardProps {
     onClick: () => void;
 }
 
+const HTTP_METHODS = [
+    "get", "post", "put", "patch",
+    "delete", "options", "head", "trace"
+];
+
 function IntegrationCard({ api, onClick }: IntegrationCardProps) {
     // Count endpoints in the saved OpenAPI specification.
     const endpointCount = Object.values(
@@ -12,12 +17,7 @@ function IntegrationCard({ api, onClick }: IntegrationCardProps) {
     ).reduce((total, pathItem) => {
         if (!pathItem) return total;
 
-        const methods = [
-            "get", "post", "put", "patch",
-            "delete", "options", "head", "trace"
-        ];
-
-        return total + methods.filter(
+        return total + HTTP_METHODS.filter(
             (method) => method in pathItem
         ).length;
     }, 0);
