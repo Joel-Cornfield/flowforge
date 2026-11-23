@@ -51,7 +51,7 @@ export interface ExecutionEvent {
     durationMs?: number;
 }
 
-async function request<T>( // Caller specifies what type of data expected back
+export async function request<T>( // Caller specifies what type of data expected back
     endpoint: string,
     options?: RequestInit
 ): Promise<T> {
