@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import "dotenv/config";
 import workflowRoutes from "./routes/workflowRoutes";
+import integrationRoutes from "./routes/integrationRoutes";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;
@@ -38,6 +39,8 @@ app.use((
 });
 
 app.use("/api/workflows", workflowRoutes);
+app.use("/api/integrations", integrationRoutes);
+
 // Start Server
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
