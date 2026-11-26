@@ -48,7 +48,13 @@ export const saveAPI = async (
     }
 
     try {
-        const validatedSpec = await SwaggerParser.validate(specification) as OpenAPIV3.Document;
+        const validatedSpec = await SwaggerParser.validate(
+            specification
+        ) as OpenAPIV3.Document;
+
+        const bundledSpec = await SwaggerParser.bundle(
+            validatedSpec
+        ) as OpenAPIV3.Document;
 
         const baseUrl = validatedSpec.servers?.[0]?.url;
 
@@ -84,7 +90,7 @@ export const saveAPI = async (
             data: {
                 name: name.trim(),
                 baseUrl,
-                specification: specification as Prisma.InputJsonValue
+                specification: bundledSpec as unknown as Prisma.InputJsonValue
             }
         });
 
