@@ -1,12 +1,41 @@
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 
+export type ApiParameterConfig = {
+    name: string;
+    in: "path" | "query" | "header" | "cookie";
+    required?: boolean;
+    description?: string;
+    schema?: unknown;
+    example?: unknown;
+    deprecated?: boolean;
+    style?: string;
+    explode?: boolean;
+};
+
+export type ApiEndpointConfig = {
+    integrationId: string;
+    integrationName: string;
+    baseUrl: string;
+    path: string;
+    method: string;
+    operationId?: string;
+    summary?: string;
+    description?: string;
+    parameters: ApiParameterConfig[];
+    requestBody?: unknown;
+    security?: Array<Record<string, string[]>>;
+    responses: Record<string, unknown>;
+};
+
 export type WorkflowNodeData = {
     label: string;
     description: string;
     nodeType: "manualTrigger" | "httpRequest" | "logOutput";
     url?: string;
-    method?: "GET" | "POST" | "PUT" | "DELETE";
+    method?: string;
     executionStatus?: "idle" | "running" | "success" | "failed";
+    // Full config imported from an OpenAPI endpoint
+    apiEndpoint?: ApiEndpointConfig;
 }
 
 function NodeShell({
