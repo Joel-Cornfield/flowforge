@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router";
+import { Link, useParams, useNavigate } from "react-router";
 import { getAPI, type ApiIntegration } from "../lib/integrationApi";
 import { useEffect, useState } from "react";
 import type { OpenAPIV3 } from "openapi-types";
@@ -66,6 +66,56 @@ function getRequestBodySchema(
     return resolvedSchema as OpenAPIV3.SchemaObject;
 }
 
+// Recursively traverse specification and replaces every $ref pointer with its actual target definition
+function resolveDeepReferences(
+    value: unknown,
+    specification: OpenAPIV3.Document,
+    seen = new Set<string>()
+): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) =>
+            resolveDeepReferences(item, specification, seen)
+        );
+    }
+
+    if (!isObject(value)) {
+        return value;
+    }
+
+    if (typeof value.$ref === "string") {
+        const reference = value.$ref;
+
+        // Avoid infinite recursion from circular schema references.
+        if (seen.has(reference)) {
+            return value;
+        }
+
+        const resolved = resolveReference(reference, specification);
+
+        if (!resolved) {
+            return value;
+        }
+
+        // Clone set to ensure shared references in sibling branches still get resolved (only blocks direct ancestor loops)
+        const nextSeen = new Set(seen);
+        nextSeen.add(reference);
+
+        return resolveDeepReferences(
+            resolved,
+            specification,
+            nextSeen
+        );
+    }
+
+    // If not a $ref => iterates over every nested value and reconstructs a new object 
+    return Object.fromEntries(
+        Object.entries(value).map(([key, nestedValue]) => [
+            key,
+            resolveDeepReferences(nestedValue, specification, seen),
+        ])
+    );
+}
+
 function IntegrationDetails() {
     const { id } = useParams<{ id: string }>();
 
@@ -73,6 +123,8 @@ function IntegrationDetails() {
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [expandedEndpoint, setExpandedEndpoint] = useState<string | null>(null);
+    
+    const navigate = useNavigate();
 
     useEffect(() => {
         const initialiseAPI = async () => {
@@ -120,6 +172,61 @@ function IntegrationDetails() {
             }];
         });
     });
+
+    const addEndpointToWorkflow = (endpoint: APIEndpoint) => {
+        const pathItem = specification?.paths?.[endpoint.path];
+
+        if (!pathItem) return;
+
+        // Combine path-level and operation-level parameters.
+        const parameters = [
+            ...(pathItem.parameters ?? []),
+            ...(endpoint.operation.parameters ?? []),
+        ];
+
+        const resolvedParameters = resolveDeepReferences(
+            parameters, 
+            specification
+        );
+
+        const resolvedRequestBody = endpoint.operation.requestBody
+            ? resolveDeepReferences(
+                endpoint.operation.requestBody,
+                specification
+            )
+            : undefined;
+        
+        const resolvedResponse = resolveDeepReferences(
+            endpoint.operation.responses ?? {}, 
+            specification
+        );
+
+        const baseUrl = 
+            endpoint.operation.servers?.[0]?.url ??
+            pathItem.servers?.[0]?.url ??
+            specification.servers?.[0]?.url ??
+            api!.baseUrl;
+        
+        navigate("/", {
+            state: {
+                apiEndpoint: {
+                    integrationId: api!.id,
+                    integrationName: api!.name,
+                    baseUrl,
+                    path: endpoint.path,
+                    method: endpoint.method,
+                    operationId: endpoint.operation.operationId,
+                    summary: endpoint.operation.summary,
+                    description: endpoint.operation.description,
+                    parameters: resolvedParameters,
+                    requestBody: resolvedRequestBody,
+                    security: endpoint.operation.security ??
+                        specification.security ?? [],
+                    responses: resolvedResponse,
+                },
+            },
+        });
+    };
 
     if (isLoading) {
         return <div>Loading integration...</div>;
@@ -174,6 +281,12 @@ function IntegrationDetails() {
 
                             {isExpanded && (
                                 <div className="endpoint-details">
+                                    <button 
+                                        className="primary-button"
+                                        onClick={() => addEndpointToWorkflow(endpoint)}
+                                    >
+                                        + Add to Workflow
+                                    </button>
 
                                     {/* Parameters */}
                                     <h4>Parameters</h4>
