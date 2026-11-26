@@ -3,6 +3,7 @@ import { getAPI, type ApiIntegration } from "../lib/integrationApi";
 import { useEffect, useState } from "react";
 import type { OpenAPIV3 } from "openapi-types";
 import "../App.css";
+import { resolveReference } from "../lib/openApiUtils";
 
 const HTTP_METHODS = [
     "get",
@@ -21,26 +22,48 @@ interface APIEndpoint {
     operation: OpenAPIV3.OperationObject;
 }
 
+// Check whether a value is a non-null object.
+function isObject(value: unknown): value is Record<string, unknown> {
+    return typeof value === "object" && value !== null;
+}
+
+// Extract the JSON request body schema, resolving references where possible.
 function getRequestBodySchema(
-    requestBody: OpenAPIV3.RequestBodyObject | OpenAPIV3.ReferenceObject | undefined
-) {
-    if (!requestBody || "$ref" in requestBody) {
+    requestBody:
+        | OpenAPIV3.RequestBodyObject
+        | OpenAPIV3.ReferenceObject
+        | undefined,
+    specification: OpenAPIV3.Document
+): OpenAPIV3.SchemaObject | null {
+    if (!requestBody) return null;
+
+    // Resolve a referenced request body if necessary.
+    const resolvedBody = "$ref" in requestBody
+        ? resolveReference(requestBody.$ref, specification)
+        : requestBody;
+
+    if (!isObject(resolvedBody) || !("content" in resolvedBody)) {
         return null;
     }
 
-    const content = requestBody.content["application/json"];
+    const content = resolvedBody.content as OpenAPIV3.RequestBodyObject["content"];
+    const schema = content["application/json"]?.schema;
 
-    if (!content || !("schema" in content) || !content.schema) {
+    if (!schema) return null;
+
+    // Resolve a referenced schema if necessary.
+    const resolvedSchema = "$ref" in schema
+        ? resolveReference(schema.$ref, specification)
+        : schema;
+
+    if (
+        !isObject(resolvedSchema) ||
+        "$ref" in resolvedSchema
+    ) {
         return null;
     }
 
-    const schema = content.schema;
-
-    if ("$ref" in schema) {
-        return null;
-    }
-
-    return schema;
+    return resolvedSchema as OpenAPIV3.SchemaObject;
 }
 
 function IntegrationDetails() {
@@ -65,8 +88,8 @@ function IntegrationDetails() {
             } catch (error) {
                 setError(
                     error instanceof Error
-                    ? error.message
-                    : "Failed to load integration"
+                        ? error.message
+                        : "Failed to load integration"
                 );
             } finally {
                 setIsLoading(false);
@@ -76,12 +99,15 @@ function IntegrationDetails() {
         void initialiseAPI();
     }, [id]);
 
-    const specification = api?.specification as unknown as OpenAPIV3.Document;
+    const specification = api
+        ? api.specification as unknown as OpenAPIV3.Document
+        : null;
 
     const endpoints: APIEndpoint[] = Object.entries(
         specification?.paths ?? {}
     ).flatMap(([path, pathItem]) => {
         if (!pathItem) return [];
+
         return HTTP_METHODS.flatMap((method) => {
             const operation = pathItem[method];
 
@@ -89,7 +115,7 @@ function IntegrationDetails() {
 
             return [{
                 method: method.toUpperCase(),
-                path, 
+                path,
                 operation,
             }];
         });
@@ -103,7 +129,7 @@ function IntegrationDetails() {
         return <div>Error: {error}</div>;
     }
 
-    if (!api) {
+    if (!api || !specification) {
         return <div>Integration not found.</div>;
     }
 
@@ -137,6 +163,7 @@ function IntegrationDetails() {
 
                                 <div className="endpoint-info">
                                     <strong>{endpoint.path}</strong>
+
                                     {endpoint.operation.summary && (
                                         <p>{endpoint.operation.summary}</p>
                                     )}
@@ -147,6 +174,7 @@ function IntegrationDetails() {
 
                             {isExpanded && (
                                 <div className="endpoint-details">
+
                                     {/* Parameters */}
                                     <h4>Parameters</h4>
 
@@ -154,16 +182,37 @@ function IntegrationDetails() {
                                     endpoint.operation.parameters.length > 0 ? (
                                         <ul>
                                             {endpoint.operation.parameters.map((parameter, index) => {
-                                                // OpenAPI parameters can either be defined directly as ParameterObjects or
-                                                // reference another parameter using $ref. Check for references before
-                                                // accessing properties such as name, in, required and description.
+                                                // OpenAPI parameters can be defined directly
+                                                // or reference another parameter using $ref.
+                                                // Resolve references before accessing parameter properties.
                                                 if ("$ref" in parameter) {
+                                                    const resolvedParameter = resolveReference(
+                                                        parameter.$ref,
+                                                        specification
+                                                    );
+
+                                                    if (
+                                                        !isObject(resolvedParameter) ||
+                                                        !("name" in resolvedParameter)
+                                                    ) {
+                                                        return (
+                                                            <li key={index}>
+                                                                Unable to resolve parameter: {parameter.$ref}
+                                                            </li>
+                                                        );
+                                                    }
+
+                                                    const resolved = resolvedParameter as unknown as OpenAPIV3.ParameterObject;
+
                                                     return (
                                                         <li key={index}>
-                                                            Referenced parameter: {parameter.$ref}
+                                                            {resolved.name} ({resolved.in})
+                                                            {resolved.required && " - Required"}
+                                                            {resolved.description && `: ${resolved.description}`}
                                                         </li>
                                                     );
                                                 }
+
                                                 return (
                                                     <li key={`${parameter.name}-${parameter.in}-${index}`}>
                                                         {parameter.name} ({parameter.in})
@@ -181,7 +230,10 @@ function IntegrationDetails() {
                                     <h4>Request Body</h4>
 
                                     {(() => {
-                                        const schema = getRequestBodySchema(endpoint.operation.requestBody);
+                                        const schema = getRequestBodySchema(
+                                            endpoint.operation.requestBody,
+                                            specification
+                                        );
 
                                         if (!schema) {
                                             return <p>No request body schema available.</p>;
@@ -194,26 +246,41 @@ function IntegrationDetails() {
                                         return (
                                             <div className="request-body-properties">
                                                 {Object.entries(schema.properties).map(([name, property]) => {
-                                                    if ("$ref" in property) {
+                                                    // Resolve referenced properties before displaying them.
+                                                    const resolvedProperty = "$ref" in property
+                                                        ? resolveReference(property.$ref, specification)
+                                                        : property;
+
+                                                    if (
+                                                        !isObject(resolvedProperty) ||
+                                                        "$ref" in resolvedProperty
+                                                    ) {
                                                         return (
                                                             <div key={name} className="request-property">
                                                                 <strong>{name}</strong>
-                                                                <span>Referenced schema: {property.$ref}</span>
+                                                                <span>Unable to resolve referenced schema.</span>
                                                             </div>
                                                         );
                                                     }
 
+                                                    const propertySchema = resolvedProperty as OpenAPIV3.SchemaObject;
+
                                                     return (
                                                         <div key={name} className="request-property">
                                                             <strong>{name}</strong>
-                                                            <span>{property.type ?? "unknown"}</span>
 
-                                                            {property.description && (
-                                                                <p>{property.description}</p>
+                                                            <span>
+                                                                {propertySchema.type ?? "unknown"}
+                                                            </span>
+
+                                                            {propertySchema.description && (
+                                                                <p>{propertySchema.description}</p>
                                                             )}
 
                                                             {schema.required?.includes(name) && (
-                                                                <span className="required-label">Required</span>
+                                                                <span className="required-label">
+                                                                    Required
+                                                                </span>
                                                             )}
                                                         </div>
                                                     );
@@ -230,6 +297,7 @@ function IntegrationDetails() {
                                     ).map(([status, response]) => (
                                         <div key={status} className="response-item">
                                             <strong>{status}</strong>
+
                                             <span>
                                                 {"description" in response
                                                     ? response.description
@@ -243,8 +311,8 @@ function IntegrationDetails() {
                     );
                 })}
             </div>
-                    </div>
-                );
-            }
+        </div>
+    );
+}
 
 export default IntegrationDetails;
