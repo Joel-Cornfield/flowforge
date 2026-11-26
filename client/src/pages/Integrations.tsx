@@ -5,11 +5,13 @@ import {
     type ApiIntegration,
 } from "../lib/integrationApi";
 import IntegrationCard from "../components/integrations/IntegrationCard";
+import { useNavigate } from "react-router";
 
 function Integrations() {
     const [apis, setApis] = useState<ApiIntegration[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const navigate = useNavigate();
 
     useEffect(() => {
         const initialiseAPIs = async () => {
@@ -54,7 +56,7 @@ function Integrations() {
                             key={api.id}
                             api={api}
                             onClick={() => {
-                                console.log("Selected API:", api.id);
+                                navigate(`/integrations/${api.id}`);
                             }}
                         />
                     ))}

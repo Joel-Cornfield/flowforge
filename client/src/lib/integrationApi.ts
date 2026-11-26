@@ -13,13 +13,19 @@ interface GetAPIsResponse {
     apis: ApiIntegration[];
 }
 
+interface GetAPIResponse {
+    api: ApiIntegration;
+}
+
 export async function getAPIs(): Promise<ApiIntegration[]> {
     const data = await request<GetAPIsResponse>("/integrations");
     return data.apis;
 }
 
 export async function getAPI(id: string): Promise<ApiIntegration> {
-    return request<ApiIntegration>(`/integrations/${id}`);
+    const data = await request<GetAPIResponse>(`/integrations/${id}`);
+
+    return data.api;
 }
 /*
 export async function saveAPI(data: ApiIntegration): Promise<> {
