@@ -1,5 +1,5 @@
 import type { Node } from "@xyflow/react";
-import type { WorkflowNodeData } from "../nodes/WorkflowNodes";
+import type { WorkflowNodeData, ApiParameterConfig } from "../nodes/WorkflowNodes";
 
 type NodeConfigPanelProps = {
     node: Node<WorkflowNodeData> | null;
@@ -9,6 +9,34 @@ type NodeConfigPanelProps = {
     ) => void;
     onDelete: (nodeId: string) => void;
 };
+
+
+// Turns any value into a string you can show inside a <pre>
+function formatJson(value: unknown) {
+    if (value === undefined || value === null) {
+        return "Not specified";
+    }
+
+    if (typeof value === "string") {
+        return value;
+    }
+
+    return JSON.stringify(value, null, 2);
+}
+
+
+// Finds an example value for an API parameter
+function getParameterExample(parameter: ApiParameterConfig) {
+    if (parameter.example !== undefined) {
+        return parameter.example;
+    }
+
+    if (parameter.schema && typeof parameter.schema === "object" && "example" in parameter.schema) {
+        return parameter.schema.example;
+    }
+
+    return undefined;
+}
 
 function NodeConfigPanel({
     node,
@@ -28,6 +56,9 @@ function NodeConfigPanel({
     }
 
     const data = node.data;
+    const endpoint = data.apiEndpoint;
+    const parameterLocations = ["path", "query", "header", "cookie"] as const; 
+    // `as const` makes this a tuple of literal types instead of string[] (matters when you compare it against parameter.in)
 
     return (
         <aside className="config-panel">
@@ -66,48 +97,187 @@ function NodeConfigPanel({
 
             {data.nodeType === "httpRequest" && (
                 <>
-                    <div className="config-field">
-                        <label htmlFor="http-method">
-                            HTTP Method
-                        </label>
+                    <div className="config-section">
+                        <h3>Request</h3>
 
-                        <select
-                            id="http-method"
-                            value={data.method ?? "GET"}
-                            onChange={(event) => {
-                                onUpdate(node.id, {
-                                    method: event.target.value as WorkflowNodeData["method"],
-                                })
-                            }}
-                        >
-                            <option value="GET">GET</option>
-                            <option value="POST">POST</option>
-                            <option value="PUT">PUT</option>
-                            <option value="DELETE">DELETE</option>
-                        </select>
+                        {endpoint && (
+                            <p className="field-hint">
+                                Imported from {endpoint.integrationName}
+                            </p>
+                        )}
+
+                        <div className="config-field">
+                            <label htmlFor="http-method">
+                                HTTP Method
+                            </label>
+
+                            <select
+                                id="http-method"
+                                value={data.method ?? "GET"}
+                                onChange={(event) => {
+                                    onUpdate(node.id, {
+                                        method: event.target.value as WorkflowNodeData["method"],
+                                    })
+                                }}
+                            >
+                                <option value="GET">GET</option>
+                                <option value="POST">POST</option>
+                                <option value="PUT">PUT</option>
+                                <option value="DELETE">DELETE</option>
+                            </select>
+                        </div>
+
+                        <div className="config-field">
+                            <label htmlFor="http-url">Request URL</label>
+
+                            <input
+                                id="http-url"
+                                type="url"
+                                placeholder="https://api.example.com/data"
+                                value={data.url ?? ""}
+                                onChange={(event) => {
+                                    onUpdate(node.id, {
+                                        url: event.target.value,
+                                    })
+                                }}
+                            />
+                        </div>
+
+                        {endpoint && (
+                            <>
+                                <div className="config-field">
+                                    <label>Base URL</label>
+                                    <code>{endpoint.baseUrl}</code>
+                                </div>
+
+                                <div className="config-field">
+                                    <label>Endpoint Path</label>
+                                    <code>{endpoint.path}</code>
+                                </div>
+
+                                {endpoint.operationId && (
+                                    <div className="config-field">
+                                        <label>Operation ID</label>
+                                        <code>{endpoint.operationId}</code>
+                                    </div>
+                                )}
+
+                                {endpoint.description && (
+                                    <div className="config-field">
+                                        <label>Description</label>
+                                        <code>{endpoint.description}</code>
+                                    </div>
+                                )}
+                            </>
+                        )}
                     </div>
 
-                    <div className="config-field">
-                        <label htmlFor="http-url">Request URL</label>
+                    {/* Parameters */}
+                    {endpoint && (
+                        <div className="config-section">
+                            <h3>Parameters</h3>
 
-                        <input
-                            id="http-url"
-                            type="url"
-                            placeholder="https://api.example.com/data"
-                            value={data.url ?? ""}
-                            onChange={(event) => {
-                                onUpdate(node.id, {
-                                    url: event.target.value,
+                            {endpoint.parameters.length === 0 ? (
+                                <p className="config-help">
+                                    This endpoint has no parameters.
+                                </p>
+                            ) : (
+                                parameterLocations.map((location) => {
+                                    const parameters = 
+                                        endpoint.parameters.filter(
+                                            (parameter) => parameter.in === location
+                                        );
+
+                                    if (parameters.length === 0) {
+                                        return null;
+                                    }
+
+                                    return (
+                                        <div className="config-subsection" key={location}>
+                                            <h4>{location.charAt(0).toUpperCase() + location.slice(1)}</h4>
+
+                                            {parameters.map((parameter) => (
+                                                <div className="config-detail" key={`${parameter.in}-${parameter.name}`}>
+                                                    <div className="config-detail-header">
+                                                        <strong>{parameter.name}</strong>
+                                                        <span>{parameter.required ? "Required" : "Optional"}</span>
+                                                    </div>
+                                                    {parameter.description && (
+                                                        <p>{parameter.description}</p>
+                                                    )}
+                                                    {parameter.deprecated && (
+                                                        <p className="field-hint">Deprecated</p>
+                                                    )}
+                                                    <p className="field-hint">
+                                                        Type: {
+                                                            parameter.schema &&
+                                                            typeof parameter.schema === "object" && 
+                                                            "type" in parameter.schema
+                                                                ? String(parameter.schema.type)
+                                                                : "Not specified"
+                                                        }
+                                                    </p>
+                                                    {getParameterExample(parameter) !== undefined} && (
+                                                        <pre>
+                                                            {formatJson(getParameterExample(parameter))}
+                                                        </pre>
+                                                    )
+                                                </div>
+                                            ))}
+                                        </div>
+                                    );
                                 })
-                            }}
-                        />
-
-                        <span className="field-hint">
-                            The endpoint this node will request.
-                        </span>
-                    </div>
+                            )}
+                        </div>
+                    )}
                 </>
             )}
+
+            {/* Request body */}
+            {endpoint?.requestBody !== undefined && (
+                <div className="config-section">
+                    <h3>Request Body</h3>
+                    <pre>{formatJson(endpoint.requestBody)}</pre>
+                </div>
+            )}
+
+            {/* Authentication */}
+            {endpoint && (
+                <div className="config-section">
+                    <h3>Authentication</h3>
+
+                    {endpoint.security && endpoint.security.length > 0 ? (
+                        <pre>{formatJson(endpoint.security)}</pre>
+                    ) : (
+                        <p className="config-help">No security requirements.</p>
+                    )}
+                </div>
+            )}
+            
+            {/* Responses */}
+            {endpoint && (
+                <div className="config-section">
+                    <h3>Responses</h3>
+                    {Object.keys(endpoint.responses).length === 0 ? (
+                        <p className="config-help">No response definitions.</p>
+                    ) : (
+                        Object.entries(endpoint.responses).map(([status, response]) => (
+                            <div className="config-detail" key={status}>
+                                <strong>{status}</strong>
+                                {response && typeof response === "object" && "description" in response ? (
+                                    <p>{String(response.description)}</p>
+                                ) : null}
+
+                                <details>
+                                    <summary>View response details</summary>
+
+                                    <pre>{formatJson(response)}</pre>
+                                </details>
+                            </div>
+                        ))
+                    )}
+                </div>
+            )} 
 
             {data.nodeType === "manualTrigger" && (
                 <p className="config-help">

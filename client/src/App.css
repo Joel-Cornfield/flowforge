@@ -528,6 +528,77 @@ button {
     }
 }
 
+
+.config-section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding-top: 18px;
+    margin-top: 18px;
+    border-top: 1px solid var(--border-color, #2e3440);
+}
+
+.config-section h3 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.config-subsection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.config-subsection h4 {
+    margin: 0;
+    font-size: 13px;
+    text-transform: uppercase;
+    opacity: 0.7;
+}
+
+.config-detail {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--panel-secondary, rgba(128, 128, 128, 0.08));
+    overflow-wrap: anywhere;
+}
+
+.config-detail-header {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.config-detail-header span {
+    font-size: 11px;
+    opacity: 0.7;
+}
+
+.config-detail p {
+    margin: 0;
+    font-size: 12px;
+}
+
+.config-section pre {
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 11px;
+    padding: 10px;
+    border-radius: 6px;
+    background: rgba(128, 128, 128, 0.08);
+}
+
+.config-section details summary {
+    cursor: pointer;
+    font-size: 12px;
+}
+
+
 /* Workflow title */
 .workflow-title input {
   background: transparent;
