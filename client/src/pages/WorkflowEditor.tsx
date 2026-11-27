@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
@@ -37,54 +36,74 @@ import {
   executeWorkflowStream,
 } from "../lib/workflowApi";
 
-// Initial workflow for manually creating a workflow.
-const initialNodes: Node<WorkflowNodeData>[] = [
-  {
-    id: "trigger-1",
-    type: "manualTrigger",
-    position: { x: 100, y: 150 },
-    data: {
-      label: "Manual Trigger",
-      description: "Starts the workflow",
-      nodeType: "manualTrigger",
-    },
-  },
-  {
-    id: "http-1",
-    type: "httpRequest",
-    position: { x: 420, y: 150 },
-    data: {
-      label: "Fetch Data",
-      description: "Fetch data from an API",
-      nodeType: "httpRequest",
-      method: "GET",
-      url: "https://jsonplaceholder.typicode.com/todos/1",
-    },
-  },
-];
+// No default workflow: the editor starts empty until a workspace is created.
+const initialNodes: Node<WorkflowNodeData>[] = [];
 
-const initialEdges: Edge[] = [
-  {
-    id: "trigger-to-http",
-    source: "trigger-1",
-    target: "http-1",
-    animated: true,
-  },
-];
+const initialEdges: Edge[] = [];
+
+const ACTIVE_WORKFLOW_STORAGE_KEY = "flowforge:open-workflow";
+
+interface ActiveWorkflowSnapshot {
+  workflowId: string | null;
+  workflowName: string;
+  nodes: Node<WorkflowNodeData>[];
+  edges: Edge[];
+  hasActiveWorkspace: boolean;
+}
+
+function readActiveWorkflowSnapshot(): ActiveWorkflowSnapshot | null {
+  const stored = sessionStorage.getItem(ACTIVE_WORKFLOW_STORAGE_KEY);
+
+  if (!stored) return null;
+
+  try {
+    const snapshot = JSON.parse(stored) as Partial<ActiveWorkflowSnapshot>;
+
+    if (!Array.isArray(snapshot.nodes) || !Array.isArray(snapshot.edges)) {
+      return null;
+    }
+
+    return {
+      workflowId:
+        typeof snapshot.workflowId === "string" ? snapshot.workflowId : null,
+      workflowName:
+        typeof snapshot.workflowName === "string"
+          ? snapshot.workflowName
+          : "",
+      nodes: snapshot.nodes as Node<WorkflowNodeData>[],
+      edges: snapshot.edges as Edge[],
+      hasActiveWorkspace:
+        typeof snapshot.hasActiveWorkspace === "boolean"
+          ? snapshot.hasActiveWorkspace
+          : false,
+    };
+  } catch {
+    return null;
+  }
+}
 
 function WorkflowEditor() {
+  const initialSnapshot = useMemo(() => readActiveWorkflowSnapshot(), []);
+
   const [nodes, setNodes, onNodesChange] =
-    useNodesState<Node<WorkflowNodeData>>(initialNodes);
+    useNodesState<Node<WorkflowNodeData>>(initialSnapshot?.nodes ?? initialNodes);
 
   const [edges, setEdges, onEdgesChange] =
-    useEdgesState<Edge>(initialEdges);
+    useEdgesState<Edge>(initialSnapshot?.edges ?? initialEdges);
 
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const [showNodeMenu, setShowNodeMenu] = useState(false);
 
   // Workflow persistence state
-  const [workflowId, setWorkflowId] = useState<string | null>(null);
-  const [workflowName, setWorkflowName] = useState("My First Workflow");
+  const [hasActiveWorkspace, setHasActiveWorkspace] = useState(
+    initialSnapshot?.hasActiveWorkspace ?? false
+  );
+  const [workflowId, setWorkflowId] = useState<string | null>(
+    initialSnapshot?.workflowId ?? null
+  );
+  const [workflowName, setWorkflowName] = useState(
+    initialSnapshot?.workflowName ?? ""
+  );
   const [workflows, setWorkflows] = useState<WorkflowSummary[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -190,53 +209,28 @@ function WorkflowEditor() {
     }
   }, []);
 
-  // Add an API endpoint to a workflow and save it automatically.
+  // Add an API endpoint to the active workflow workspace.
   const addIntegrationEndpoint = useCallback(
     async (endpoint: ApiEndpointConfig) => {
-      const storageKey = `flowforge:active-workflow:${endpoint.integrationId}`;
+      if (!hasActiveWorkspace) {
+        setError("Create a workflow workspace with + New before adding endpoints.");
+        return;
+      }
 
       setIsLoading(true);
       setError(null);
       setStatusMessage("");
 
       try {
-        let activeWorkflowId = sessionStorage.getItem(storageKey);
-        let currentNodes: Node<WorkflowNodeData>[] = [];
-        let currentEdges: Edge[] = [];
-        let currentWorkflowName = `${endpoint.integrationName} Workflow`;
-
-        // Try loading the existing workflow for this integration.
-        if (activeWorkflowId) {
-          try {
-            const workflow = await getWorkflow(activeWorkflowId);
-
-            currentNodes = workflow.nodes as Node<WorkflowNodeData>[];
-            currentEdges = workflow.edges as Edge[];
-            currentWorkflowName = workflow.name;
-
-          } catch {
-            // The saved workflow may have been deleted.
-            // Remove its ID so a new workflow can be created.
-            sessionStorage.removeItem(storageKey);
-            activeWorkflowId = null;
-          }
-        }
-
-        // Check whether this endpoint has already been added.
-        const alreadyExists = currentNodes.some(
+        const alreadyExists = nodes.some(
           (node) =>
             node.data.apiEndpoint?.integrationId === endpoint.integrationId &&
             node.data.apiEndpoint?.path === endpoint.path &&
             node.data.apiEndpoint?.method === endpoint.method
         );
 
-        if (alreadyExists && activeWorkflowId) {
-          setWorkflowId(activeWorkflowId);
-          setWorkflowName(currentWorkflowName);
-          setNodes(currentNodes);
-          setEdges(currentEdges);
-
-          const existingNode = currentNodes.find(
+        if (alreadyExists) {
+          const existingNode = nodes.find(
             (node) =>
               node.data.apiEndpoint?.integrationId === endpoint.integrationId &&
               node.data.apiEndpoint?.path === endpoint.path &&
@@ -244,39 +238,15 @@ function WorkflowEditor() {
           );
 
           setSelectedNodeId(existingNode?.id ?? null);
-          setStatusMessage("This endpoint is already in the workflow.");
-
-          const updatedWorkflows = await getWorkflows();
-          setWorkflows(updatedWorkflows);
-
+          setStatusMessage("This endpoint is already in the current workflow.");
           return;
         }
 
-        // If this is a new workflow, start with a Manual Trigger node.
-        if (!activeWorkflowId) {
-          currentNodes = [
-            {
-              id: crypto.randomUUID(),
-              type: "manualTrigger",
-              position: { x: 100, y: 150 },
-              data: {
-                label: "Manual Trigger",
-                description: "Starts the workflow",
-                nodeType: "manualTrigger",
-              },
-            },
-          ];
-
-          currentEdges = [];
-          currentWorkflowName = `${endpoint.integrationName} Workflow`;
-        }
-
-        // Create the new HTTP Request node.
         const newNode: Node<WorkflowNodeData> = {
           id: crypto.randomUUID(),
           type: "httpRequest",
           position: {
-            x: 420 + Math.max(0, currentNodes.length - 1) * 300,
+            x: 420 + Math.max(0, nodes.length - 1) * 300,
             y: 150,
           },
           data: {
@@ -294,53 +264,19 @@ function WorkflowEditor() {
           },
         };
 
-        const updatedNodes = [...currentNodes, newNode];
+        const updatedNodes = [...nodes, newNode];
 
-        // Connect the Manual Trigger to the first API node.
-        const updatedEdges =
-          currentNodes.length === 1 &&
-          currentNodes[0].data.nodeType === "manualTrigger"
-            ? [
-                ...currentEdges,
-                {
-                  id: crypto.randomUUID(),
-                  source: currentNodes[0].id,
-                  target: newNode.id,
-                  animated: true,
-                },
-              ]
-            : currentEdges;
-
-        const workflowData = {
-          name: currentWorkflowName,
-          nodes: updatedNodes,
-          edges: updatedEdges,
-        };
-
-        // Save the workflow to the database.
-        const savedWorkflow = activeWorkflowId
-          ? await updateWorkflow(activeWorkflowId, workflowData)
-          : await createWorkflow(workflowData);
-
-        // Remember the workflow associated with this integration.
-        sessionStorage.setItem(storageKey, savedWorkflow.id);
-
-        // Update editor state.
-        setWorkflowId(savedWorkflow.id);
-        setWorkflowName(savedWorkflow.name);
         setNodes(updatedNodes);
-        setEdges(updatedEdges);
         setSelectedNodeId(newNode.id);
 
         setExecutionResult(null);
         setIsVisible(false);
 
-        // Refresh the workflow dropdown.
         const updatedWorkflows = await getWorkflows();
         setWorkflows(updatedWorkflows);
 
         setStatusMessage(
-          `Added ${endpoint.method} ${endpoint.path} and saved workflow.`
+          `Added ${endpoint.method} ${endpoint.path} to the current workflow.`
         );
       } catch (error) {
         setError(
@@ -352,7 +288,7 @@ function WorkflowEditor() {
         setIsLoading(false);
       }
     },
-    [setNodes, setEdges]
+    [nodes, edges, workflowId, workflowName, setNodes, setEdges]
   );
 
   // Process an endpoint passed from IntegrationDetails.
@@ -384,6 +320,7 @@ function WorkflowEditor() {
       try {
         const workflow = await getWorkflow(id);
 
+        setHasActiveWorkspace(true);
         setWorkflowId(workflow.id);
         setWorkflowName(workflow.name);
         setNodes(workflow.nodes as Node<WorkflowNodeData>[]);
@@ -420,17 +357,7 @@ function WorkflowEditor() {
 
         setWorkflows(savedWorkflows);
 
-        // Don't load another workflow if an API endpoint is incoming.
-        if (!incomingEndpointRef.current && savedWorkflows.length > 0) {
-          const workflow = await getWorkflow(savedWorkflows[0].id);
-
-          if (cancelled) return;
-
-          setWorkflowId(workflow.id);
-          setWorkflowName(workflow.name);
-          setNodes(workflow.nodes as Node<WorkflowNodeData>[]);
-          setEdges(workflow.edges as Edge[]);
-        }
+        // Users choose a saved workflow or press + New.
       } catch (error) {
         if (!cancelled) {
           setError(
@@ -453,6 +380,20 @@ function WorkflowEditor() {
     };
   }, [setNodes, setEdges]);
 
+  // Keep the open workflow state across routes such as the integrations page.
+  useEffect(() => {
+    sessionStorage.setItem(
+      ACTIVE_WORKFLOW_STORAGE_KEY,
+      JSON.stringify({
+        workflowId,
+        workflowName,
+        nodes,
+        edges,
+        hasActiveWorkspace,
+      })
+    );
+  }, [workflowId, workflowName, nodes, edges]);
+
   // Save the current workflow.
   const saveCurrentWorkflow = useCallback(async () => {
     setIsSaving(true);
@@ -472,6 +413,7 @@ function WorkflowEditor() {
 
       setWorkflowId(savedWorkflow.id);
       setWorkflowName(savedWorkflow.name);
+      setHasActiveWorkspace(true);
 
       const updatedWorkflows = await getWorkflows();
       setWorkflows(updatedWorkflows);
@@ -509,6 +451,7 @@ function WorkflowEditor() {
 
       setWorkflowId(savedWorkflow.id);
       setWorkflowName(savedWorkflow.name);
+      setHasActiveWorkspace(true);
 
       const updatedWorkflows = await getWorkflows();
       setWorkflows(updatedWorkflows);
@@ -539,6 +482,7 @@ function WorkflowEditor() {
 
   // Create a new blank workflow.
   const createNewWorkflow = useCallback(() => {
+    setHasActiveWorkspace(true);
     setWorkflowId(null);
     setWorkflowName("Untitled Workflow");
     setNodes(initialNodes);
@@ -656,13 +600,15 @@ function WorkflowEditor() {
         </div>
 
         <div className="workflow-title">
-          <input
-            type="text"
-            value={workflowName}
-            onChange={(event) => setWorkflowName(event.target.value)}
-            maxLength={100}
-            aria-label="Workflow name"
-          />
+          {hasActiveWorkspace && (
+            <input
+              type="text"
+              value={workflowName}
+              onChange={(event) => setWorkflowName(event.target.value)}
+              maxLength={100}
+              aria-label="Workflow name"
+            />
+          )}
         </div>
 
         <div className="topbar-actions">
@@ -696,6 +642,7 @@ function WorkflowEditor() {
             <button
               className="secondary-button"
               onClick={() => setShowNodeMenu((visible) => !visible)}
+              disabled={!hasActiveWorkspace}
             >
               + Add Node
             </button>
@@ -723,7 +670,12 @@ function WorkflowEditor() {
           <button
             className="primary-button"
             onClick={() => void saveCurrentWorkflow()}
-            disabled={isSaving || isLoading || !workflowName.trim()}
+            disabled={
+              !hasActiveWorkspace ||
+              isSaving ||
+              isLoading ||
+              !workflowName.trim()
+            }
           >
             {isSaving ? "Saving..." : "Save Workflow"}
           </button>
@@ -732,6 +684,7 @@ function WorkflowEditor() {
             className="primary-button"
             onClick={() => void runWorkflow()}
             disabled={
+              !hasActiveWorkspace ||
               isExecuting ||
               isSaving ||
               isLoading ||
